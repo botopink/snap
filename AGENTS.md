@@ -71,5 +71,13 @@ Every clone runs the shared pre-commit gate:
 git config core.hooksPath scripts/git-hooks
 ```
 
+`scripts/gate.sh [--staged] [--no-conformance] [--jobs <N>]` is the gate's one entry (one text in every
+library repository, CI check 4; it runs `scripts/git-hooks/lib/runner-standalone.sh`): the pre-commit hook
+runs `scripts/gate.sh --staged --no-conformance` (decision 470), and CI on a push to `feat` and a front's
+Conformance step run it whole, which adds the last stage, `botopink cell check conformance/` over this
+repository's `conformance/` cells (decisions 463, 464; the stage exists when the directory does). It knows no
+job pool: `--jobs` is the total it may use, and the meta repository's `scripts/gate.sh run <repository>`
+hands it its share.
+
 `scripts/git-hooks/pre-commit` and `scripts/git-hooks/lib/runner-standalone.sh` are byte-identical
 across the library repositories (the meta repository's CI check 4); edit them in one place and copy.
