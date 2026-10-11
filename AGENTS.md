@@ -1,5 +1,7 @@
 # snap
 
+`decisions-taken.md` is generated — from the meta repository's `specs/<milestone>/decisions-taken.md` by `scripts/decisions-split.py`; edit it there, never here.
+
 > Repository: `botopink/snap` (`git@github.com:botopink/snap.git`) · in the meta checkout: `repository/snap/`
 
 The snapshot engine every `<lib>-test` writes through (decisions 72, 390, 391): the path rule
