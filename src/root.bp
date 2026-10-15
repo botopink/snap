@@ -141,21 +141,47 @@ pub fn pathNamed(loc: SourceLocation, name: string) -> string {
 fn ensureDir(dir: string) -> @Result<void, string> {
     if (dir == "") return;
     val made = fs.mkdirRecursive(dir);
-    if (made.isError()) throw errorOf(made);
+    if (made.isError()) throw fsErrorText(made);
     return;
+}
+
+// An `io.fs` error as the text snap's `string` errors carry.
+fn fsText(e: fs.FsError) -> string {
+    return case e {
+        NotFound(path) -> ["not found: ", path].join("");
+        PermissionDenied(path) -> ["permission denied: ", path].join("");
+        IsDirectory(path) -> ["is a directory: ", path].join("");
+        NotDirectory(path) -> ["not a directory: ", path].join("");
+        AlreadyExists(path) -> ["already exists: ", path].join("");
+        InvalidUtf8(path, offset) -> ["not UTF-8: ", path, " at byte ", offset.toString()].join("");
+        Other(path, message) -> [path, ": ", message].join("");
+    };
+}
+
+// The `FsError` text of an `io.fs` result, `""` for `Ok`.
+fn fsErrorText<T>(r: @Result<T, fs.FsError>) -> string {
+    val text = case r {
+        Ok(v) -> "";
+        Error(e) -> fsText(e);
+    };
+    return text;
 }
 
 // Write `text` to `p`, creating the parent directories; the host's error
 // on failure (a full disk is a test failure, not a silent pass).
 fn writeFile(p: string, text: string) -> @Result<i32, string> {
     try ensureDir(parentOf(p));
-    return try fs.writeText(p, text);
+    val written = fs.writeText(p, text);
+    if (written.isError()) throw fsErrorText(written);
+    return written.unwrapOr(0);
 }
 
 // Remove `p`; a file that is not there is `Ok` too.
 fn removeFile(p: string) -> @Result<i32, string> {
     if (fs.exists(p) == false) return 0;
-    return try fs.rm(p);
+    val removed = fs.rm(p);
+    if (removed.isError()) throw fsErrorText(removed);
+    return removed.unwrapOr(0);
 }
 
 // The first `<base>/bpsnap-<pid>-<n>` that is not there yet, counting from
