@@ -12,6 +12,8 @@ helper that spells them.
 a directory, so the text is the is-a-directory variant's. Each line is the variant's own text,
 the path after it, and it is the same on every target.
 
-Proving cells: none in this repository yet; the language's is botopink-lang's `conformance/modules/fs_error_message`.
+The `SourceLocation` here is built by hand so that the paths are fixed. In a real test the caller's location reaches the engine through `comptime compiler.src` — a reading of decision 606 (3), which no row states for snap's consumers yet.
+
+Proving cells: none in this repository yet; snap's own cells come with front 160's Conformance step (decision 465), which writes the cells its behaviour calls for under this `conformance/`.
 
 [draft/main.bp](draft/main.bp)

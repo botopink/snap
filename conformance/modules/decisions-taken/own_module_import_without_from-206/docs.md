@@ -14,7 +14,9 @@ named second snapshot as the dependency computes it — three answers that show 
 never mix. Writing `from "<this package>"` for the local module is refused
 (`module-import-with-from`, decision 309), its fix the brace form used here.
 
-Proving cells: none in this repository yet; the language's are botopink-lang's `conformance/modules/import_own_module_with_from`, `import_bundled_package_beside_own_module`, `two_packages_one_module_name`, `import_module_path_in_braces` and `import_module_paths`.
+The `SourceLocation` here is built by hand so that the paths are fixed. In a real test the caller's location reaches the engine through `comptime compiler.src` — a reading of decision 606 (3), which no row states for snap's consumers yet.
+
+Proving cells: none in this repository yet; snap's own cells come with front 160's Conformance step (decision 465), which writes the cells its behaviour calls for under this `conformance/`.
 
 [draft/main.bp](draft/main.bp)
 

@@ -12,6 +12,8 @@ The engine's four `assert*` entry points are the other half of the rule: they re
 which has no wasm binding, so one of them written under `comptime` would be refused at build,
 located, naming the host function it reaches — never run on the target's VM instead.
 
-Proving cells: none in this repository or in botopink-lang's `conformance/modules/` names this decision yet.
+The `SourceLocation` here is built by hand so that the paths are fixed. In a real test the caller's location reaches the engine through `comptime compiler.src` — a reading of decision 606 (3), which no row states for snap's consumers yet.
+
+Proving cells: none in this repository yet; snap's own cells come with front 160's Conformance step (decision 465), which writes the cells its behaviour calls for under this `conformance/`.
 
 [draft/main.bp](draft/main.bp)

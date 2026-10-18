@@ -14,6 +14,8 @@ answers `Error`, and the program asks it with its own methods, `recorded.isError
 `recorded.unwrapOr("(no snapshot)")` — the methods stay on `Result`, the operators on `?T`, and no
 `result.*` namespace is involved.
 
-Proving cells: none in this repository yet; the language's are botopink-lang's `conformance/modules/optional_operators`, `optional_call_operator`, `nullish_optional_call_default`, `optional_bang_aborts`, `optional_has_no_methods`, `nullish_never_null`, `nullish_beside_logical` and `result_namespace_removed`.
+The `SourceLocation` here is built by hand so that the paths are fixed. In a real test the caller's location reaches the engine through `comptime compiler.src` — a reading of decision 606 (3), which no row states for snap's consumers yet.
+
+Proving cells: none in this repository yet; snap's own cells come with front 160's Conformance step (decision 465), which writes the cells its behaviour calls for under this `conformance/`.
 
 [draft/main.bp](draft/main.bp)

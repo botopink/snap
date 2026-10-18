@@ -11,7 +11,7 @@ one module of this package declares `pub`, so the refusal at that item writes it
 Both refusals are `shorthand-import`, one per item, and the program builds once each item names
 where its name comes from.
 
-Proving cells: none in this repository yet; the language's are botopink-lang's `conformance/modules/shorthand_import`, `shorthand_import_one_candidate` and `shorthand_import_several_candidates`.
+Proving cells: none in this repository yet; snap's own cells come with front 160's Conformance step (decision 465), which writes the cells its behaviour calls for under this `conformance/`.
 
 [draft/main.bp](draft/main.bp)
 
