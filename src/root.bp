@@ -42,7 +42,7 @@
 //// Node's global in the emitted file, and `io/random` is not imported at all.
 //// Consumers write `import {assertAs} from "snap";`.
 
-import {io.fs, io.os, io.env, io.process as host, path.join as joinPath, path.dirname as parentOf} from "std";
+import {io.fs, io.os, io.env, io.process as host, path.join as joinPath, path.dirname as parentOf, compiler} from "std";
 
 // ── the path rule (pure) ─────────────────────────────────────────────────────
 
@@ -138,7 +138,7 @@ pub fn pathNamed(loc: SourceLocation, name: string) -> string {
 
 // Make `dir` and every missing directory above it. `""` (the parent of a bare
 // name) is done at once; a directory that is already there is `Ok` too.
-fn ensureDir(dir: string) -> @Result<void, string> {
+fn ensureDir(dir: string) -> Result<void, string> {
     if (dir == "") return;
     val made = fs.mkdirRecursive(dir);
     if (made.isError()) throw fsErrorText(made);
@@ -146,7 +146,7 @@ fn ensureDir(dir: string) -> @Result<void, string> {
 }
 
 // The `FsError` text of an `io.fs` result, `""` for `Ok`.
-fn fsErrorText<T>(r: @Result<T, fs.FsError>) -> string {
+fn fsErrorText<T>(r: Result<T, fs.FsError>) -> string {
     val text = case r {
         Ok(v) -> "";
         Error(e) -> e.message();
@@ -156,7 +156,7 @@ fn fsErrorText<T>(r: @Result<T, fs.FsError>) -> string {
 
 // Write `text` to `p`, creating the parent directories; the host's error
 // on failure (a full disk is a test failure, not a silent pass).
-fn writeFile(p: string, text: string) -> @Result<i32, string> {
+fn writeFile(p: string, text: string) -> Result<i32, string> {
     try ensureDir(parentOf(p));
     val written = fs.writeText(p, text);
     if (written.isError()) throw fsErrorText(written);
@@ -164,7 +164,7 @@ fn writeFile(p: string, text: string) -> @Result<i32, string> {
 }
 
 // Remove `p`; a file that is not there is `Ok` too.
-fn removeFile(p: string) -> @Result<i32, string> {
+fn removeFile(p: string) -> Result<i32, string> {
     if (fs.exists(p) == false) return 0;
     val removed = fs.rm(p);
     if (removed.isError()) throw fsErrorText(removed);
@@ -209,7 +209,7 @@ fn render(testName: string, subject: string, body: string) -> string {
 }
 
 // The `Error` payload of a cell's result, `""` for `Ok`.
-fn errorOf(r: @Result<i32, string>) -> string {
+fn errorOf(r: Result<i32, string>) -> string {
     val text = case r {
         Ok(v) -> "";
         Error(e) -> e;
@@ -220,7 +220,7 @@ fn errorOf(r: @Result<i32, string>) -> string {
 // The `Error` payload of an engine result, `""` for `Ok` — what a test reads
 // to check a refusal (`asserts.errorText`'s twin, private: a std module does
 // not import another).
-fn errorText(r: @Result<void, string>) -> string {
+fn errorText(r: Result<void, string>) -> string {
     val text = case r {
         Ok(v) -> "";
         Error(e) -> e;
@@ -255,7 +255,7 @@ fn verdict(
 }
 
 // Write the candidate `<path>.new`; a host failure is the test's failure.
-fn writeCandidate(newPath: string, text: string) -> @Result<void, string> {
+fn writeCandidate(newPath: string, text: string) -> Result<void, string> {
     val w = writeFile(newPath, text);
     if (w.isError())
         throw ["snapshots: cannot write ", newPath, ": ", errorOf(w)].join("");
@@ -268,7 +268,7 @@ fn check(
     file: string,
     subject: string,
     actual: string,
-) -> @Result<void, string> {
+) -> Result<void, string> {
     val expected = render(loc.fnName, subject, actual);
     val newPath = [file, ".new"].join("");
     val recorded = fs.readText(file);
@@ -309,7 +309,7 @@ fn check(
 }
 
 // Refuse a `loc` whose test name carries no suite (decision 67: no default).
-fn requireSuite(loc: SourceLocation) -> @Result<void, string> {
+fn requireSuite(loc: SourceLocation) -> Result<void, string> {
     if (loc.fnName == "")
         throw "snapshots: test name needs a suite - a @src() taken outside a test has no test name; take it inside test \"<suite>: <description>\" { ... }";
     if (suiteOf(loc.fnName) == "")
@@ -327,7 +327,7 @@ fn requireSuite(loc: SourceLocation) -> @Result<void, string> {
 pub fn assertText(
     loc: SourceLocation,
     actual: string,
-) -> @Result<void, string> {
+) -> Result<void, string> {
     try assertAs(loc, "text", actual);
     return;
 }
@@ -338,7 +338,7 @@ pub fn assertAs(
     loc: SourceLocation,
     subject: string,
     actual: string,
-) -> @Result<void, string> {
+) -> Result<void, string> {
     try requireSuite(loc);
     try check(loc, path(loc), subject, actual);
     return;
@@ -349,7 +349,7 @@ pub fn assertNamed(
     loc: SourceLocation,
     name: string,
     actual: string,
-) -> @Result<void, string> {
+) -> Result<void, string> {
     try assertNamedAs(loc, name, "text", actual);
     return;
 }
@@ -360,7 +360,7 @@ pub fn assertNamedAs(
     name: string,
     subject: string,
     actual: string,
-) -> @Result<void, string> {
+) -> Result<void, string> {
     try requireSuite(loc);
     if (slugOf(name) == "")
         throw "snapshots: a named snapshot needs a name - pass a non-empty name to assertNamed/assertNamedAs";
@@ -382,7 +382,7 @@ test "snapshots: path ---- suite and slug from a test name" {
         column: 1,
         fnName: "css: modifiers ---- hover on md breakpoint",
     );
-    try assertText(@src(), path(loc));
+    try assertText(comptime compiler.src, path(loc));
 }
 
 test "snapshots: path ---- named second snapshot" {
@@ -392,11 +392,11 @@ test "snapshots: path ---- named second snapshot" {
         column: 1,
         fnName: "route: two tables",
     );
-    try assertText(@src(), pathNamed(loc, "After Merge"));
+    try assertText(comptime compiler.src, pathNamed(loc, "After Merge"));
 }
 
 test "snapshots: slug ---- punctuation collapses to one underscore" {
-    try assertText(@src(), slugOf("Modifiers ---- Hover, on (md) breakpoint!"));
+    try assertText(comptime compiler.src, slugOf("Modifiers ---- Hover, on (md) breakpoint!"));
 }
 
 test "snapshots: path ---- a name without a suite is refused" {
@@ -407,7 +407,7 @@ test "snapshots: path ---- a name without a suite is refused" {
         fnName: "no suite here",
     );
     val r = assertAs(loc, "text", "x");
-    try assertText(@src(), errorText(r));
+    try assertText(comptime compiler.src, errorText(r));
 }
 
 test "snapshots: path ---- the pure half" {
