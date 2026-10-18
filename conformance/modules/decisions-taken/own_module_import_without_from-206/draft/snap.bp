@@ -1,0 +1,14 @@
+//// A module of this package that happens to be named `snap`, like the dependency.
+
+import {pathNamed} from "snap";
+import {compiler.SourceLocation} from "std";
+
+pub fn describe(testName: string) -> string {
+    val loc = SourceLocation(
+        file: "src/emilia.bp",
+        line: 1,
+        column: 1,
+        fnName: testName,
+    );
+    return ["second snapshot at ", pathNamed(loc, "After Merge")].join("");
+}

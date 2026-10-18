@@ -1,3 +1,27 @@
 //// Decision 594 — Every library runs at build on the wasm comptime runtime (434), jhonstart first; a function only Erlang or Node can run is a located error there.
 
-pub fn main() -> void {}
+import {io.terminal, compiler.SourceLocation} from "std";
+import {path, pathNamed, slugOf, suiteOf} from "snap";
+
+pub fn main() -> void {
+    val slug = comptime slugOf("Modifiers ---- Hover, on (md) breakpoint!");
+    val suite = comptime suiteOf("css: modifiers ---- hover on md breakpoint");
+    val file = comptime path(
+        SourceLocation(
+            file: "src/emilia.bp",
+            line: 1,
+            column: 1,
+            fnName: "css: modifiers ---- hover on md breakpoint",
+        ),
+    );
+    val named = comptime pathNamed(
+        SourceLocation(
+            file: "test/router_test.bp",
+            line: 1,
+            column: 1,
+            fnName: "route: two tables",
+        ),
+        "After Merge",
+    );
+    terminal.print(slug, "\n", suite, "\n", file, "\n", named, "\n");
+}

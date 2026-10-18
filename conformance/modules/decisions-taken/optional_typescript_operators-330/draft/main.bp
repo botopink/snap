@@ -1,3 +1,31 @@
 //// Decision 330 — `?T` is read with TypeScript's operators and has no methods; `result` goes; a type declared in a type is its associated type.
 
-pub fn main() -> void {}
+import {io.terminal, io.env, io.os, io.fs, compiler.SourceLocation} from "std";
+import {path, suiteOf} from "snap";
+
+// The suite of a test name, `null` when the name has none.
+fn suiteOrNull(testName: string) -> ?string {
+    val suite = suiteOf(testName);
+    return if (suite == "") null else suite;
+}
+
+pub fn main() -> void {
+    val base = env.read("BOTOPINK_TEST_TMPDIR") ?? os.tmpdir();
+    terminal.print(base != "", "\n");
+
+    val suite = suiteOrNull("css: modifiers ---- hover");
+    val width = suite?.length() ?? 0;
+    terminal.print(suite!, " ", width, "\n");
+
+    val none = suiteOrNull("no suite here");
+    terminal.print(none ?? "(no suite)", " ", none?.length() ?? 0, "\n");
+
+    val loc = SourceLocation(
+        file: "src/emilia.bp",
+        line: 1,
+        column: 1,
+        fnName: "css: modifiers ---- hover",
+    );
+    val recorded = fs.readText(path(loc));
+    terminal.print(recorded.isError(), " ", recorded.unwrapOr("(no snapshot)"), "\n");
+}

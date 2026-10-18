@@ -1,0 +1,7 @@
+//// A module of this package: its `pub` name is reached by its path, `import {naming.snapshotFile};`.
+
+import {slugOf} from "snap";
+
+pub fn snapshotFile(testName: string) -> string {
+    return [slugOf(testName), ".snap"].join("");
+}

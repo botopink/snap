@@ -1,3 +1,10 @@
 //// Decision 337 — The shorthand import goes; `mod m;` binds the namespace `m` in the module that declares it.
 
-pub fn main() -> void {}
+import {io.terminal} from "std";
+import {slugOf};
+import {snapshotFile};
+
+pub fn main() -> void {
+    terminal.print(slugOf("css: hover"), "\n");
+    terminal.print(snapshotFile("css: hover"), "\n");
+}

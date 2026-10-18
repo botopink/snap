@@ -1,3 +1,12 @@
 //// Decision 206 — `import {…} from "<name>"` resolves only to a package — std, a bundled package or a declared dependency.
 
-pub fn main() -> void {}
+import {io.terminal} from "std";
+import {suiteOf, slugOf} from "snap";
+import {snap.describe};
+
+pub fn main() -> void {
+    val name = "css: modifiers ---- hover on md breakpoint";
+    terminal.print(suiteOf(name), "\n");
+    terminal.print(slugOf(name), "\n");
+    terminal.print(describe(name), "\n");
+}

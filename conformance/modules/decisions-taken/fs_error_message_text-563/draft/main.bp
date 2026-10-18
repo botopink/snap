@@ -1,3 +1,29 @@
 //// Decision 563 — An `FsError` carries its own text: std's `io/fs` gives it `message()`
 
-pub fn main() -> void {}
+import {io.terminal, io.fs, compiler.SourceLocation} from "std";
+import {path} from "snap";
+
+// A recorded snapshot's text; an `io.fs` failure carried into the engine's
+// `string` error by the error's own text.
+fn readRecorded(file: string) -> Result<string, string> {
+    val text = try fs.readText(file) catch { e ->
+        throw ["snapshots: cannot read ", e.message()].join("");
+    };
+    return text;
+}
+
+fn show(file: string) -> void {
+    val text = try readRecorded(file) catch { e -> e };
+    terminal.print(text, "\n");
+}
+
+pub fn main() -> void {
+    val loc = SourceLocation(
+        file: "src/missing/t.bp",
+        line: 1,
+        column: 1,
+        fnName: "css: hover",
+    );
+    show(path(loc));
+    show(".");
+}
