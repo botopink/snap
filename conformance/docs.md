@@ -16,7 +16,7 @@ step (decision 465). A table, a grammar or a file layout is not a program and is
 | *The library* | what `snap` holds, the one module `snap`, its dependencies |
 | *The path rule* | `suiteOf`, `slugOf`, `path`, `pathNamed` |
 | *The snapshot file* | the `botopink-snap 1` format and how a body is compared |
-| *The entry points* | `matches`, `matchesAs`, `matchesNamed`, `matchesNamedAs`, the location-taking `assert*`, and how they fail |
+| *The entry points* | `matches`, `matchesAs`, `matchesNamed`, `matchesNamedAs`, `matchesRefused`, the location-taking `assert*`, and how they fail |
 | *Where the test's location and name come from* | `snap.matches` expanded at its call, the running test's name |
 | *Decisions* | `modules/decisions-taken/`: the ledger's index |
 
@@ -87,7 +87,7 @@ short to hold a header, is not a snapshot file.
 
 ## The entry points
 
-Four functions are expanded at their call (decision 719) and answer the run-time call that checks the
+Five functions are expanded at their call (decision 719) and answer the run-time call that checks the
 snapshot; a failure panics with the message below, so it is the test's failure:
 
 - `snap.matches(value)` records or compares `value`, a `string`, as the test's one snapshot with subject
@@ -97,8 +97,18 @@ snapshot; a failure panics with the message below, so it is the test's failure:
 - `snap.matchesNamed(name, value)` is a named second snapshot of the same test, subject `text`.
 - `snap.matchesNamedAs(name, subject, value)` is a named snapshot with a subject. A name that slugs to
   `""` is refused.
+- `snap.matchesRefused(comptime compiler.load(path))` records the refusals `compiler.load` answers for a file
+  (decision 784), the call a refused case's test writes: `test "<case>" { snap.matchesRefused(comptime
+  compiler.load("cases/<case>/main.bp")); }`. On `Error(ds)` the body is one block per `Diagnostic`, in
+  order, separated by one blank line — `refused <message>`, `at <file>:<line>:<column>` and `label <text>`
+  only when the diagnostic has a label — under subject `refused`; the snapshot is placed, named and
+  compared as any other. On `Ok` the test fails, naming the file that compiled:
+  `snapshots: <path> compiled - matchesRefused expects a refused file`. It is the run-time
+  `matchesRefusedAt(loaded, written, at)` that does it, `written` the load call as the test wrote it.
+  The cell is [snap_matches_refused](test/snap_matches_refused/test/snap_matches_refused.bp), shown by
+  [snap_matches_refused-784](modules/decisions-taken/snap_matches_refused-784/draft/main.bp).
 
-Each is `pub fn …(…, syntax value: unknown) -> anyvalue` over a run-time `matches…At(…, value: unknown,
+Each of the first four is `pub fn …(…, syntax value: unknown) -> anyvalue` over a run-time `matches…At(…, value: unknown,
 at: Place) -> void`; `Place(file, line, col)` is snap's own record for the call's `compiler.Source`, which
 no target builds at run time yet.
 

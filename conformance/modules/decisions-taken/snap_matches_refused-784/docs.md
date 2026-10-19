@@ -1,0 +1,7 @@
+# Decision 784 — A refused case's snapshot is written by the `snap` library from the data `compiler.load` answers; `botopink cell check` no longer records refusals of the cases a module loads; amends 781 (1)–(3), keeps 780 (3) (no `compiler.snapshot`).
+
+The example is a test of a package that has `snap` as a dependency. `comptime compiler.load(path)` compiles a file of the package at build and answers its refusals as data, a `Result<void, Diagnostic[]>` (decisions 780, 782); `snap.matchesRefused` takes that answer and records it as a snapshot. On `Error(ds)` the snapshot body is one block per `Diagnostic`, in order — `refused <message>`, `at <file>:<line>:<column>` and `label <text>` only when the diagnostic has a label —, the blocks separated by one blank line, under subject `refused`; the file is placed, named and compared by snap's own path rule, `botopink-snap 1` format and `.new` flow, so a changed refusal writes a `<path>.new` and a person accepts it by renaming. On `Ok` the test fails, naming the file that compiled. The compiler writes no snapshot of its own.
+
+Cell that proves it: [snap_matches_refused](../../../test/snap_matches_refused/test/snap_matches_refused.bp), a test-driven package beside `snapshot_named_by_running_test`: a type error and a parse error recorded (its `.snap` files under `test/__snapshots__/refused/`), a changed refusal leaving a `.new` and a file that compiles failing the test, both proved by running (see [the reference](../../../docs.md), § The entry points).
+
+[draft/main.bp](draft/main.bp)

@@ -1,0 +1,7 @@
+botopink-snap 1
+test: refused: a parse error is recorded with its label
+subject: refused
+
+refused this token cannot appear here
+at cases/unclosed/main.bp:2:15
+label unexpected `;`

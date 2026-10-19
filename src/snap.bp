@@ -42,7 +42,7 @@
 //// Node's global in the emitted file, and `io/random` is not imported at all.
 //// Consumers write `import {snap} from "snap";` and `snap.matches(render(page));`.
 
-import {failure.panic, io.fs, io.os, io.env, io.process as host, path.join as joinPath, path.dirname as parentOf, compiler, code} from "std";
+import {failure.panic, io.fs, io.os, io.env, io.process as host, path.join as joinPath, path.dirname as parentOf, compiler, compiler.Diagnostic, code} from "std";
 
 // ── the path rule (pure) ─────────────────────────────────────────────────────
 
@@ -404,6 +404,17 @@ pub fn matchesNamedAs(
     return code @`matchesNamedAsAt(${name}, ${subject}, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}))`;
 }
 
+// The refusals of a loaded file as snapshots (decisions 784, 780, 782): the
+// test writes `snap.matchesRefused(comptime compiler.load("src/cases/x/main.bp"));`
+// and the expansion answers the run-time call over the load's `Result` and the
+// call's place; the call as written (`compiler.text`) lets a file that
+// compiled be named.
+pub fn matchesRefused(syntax loaded: Result<void, Diagnostic[]>) -> anyvalue {
+    val at = compiler.source(loaded);
+    val written = compiler.text(loaded);
+    return code @`matchesRefusedAt(${loaded}, ${written}, placeAt(${at.file}, ${at.line}, ${at.col}))`;
+}
+
 // ── the run-time calls the expansions answer ─────────────────────────────────
 
 // A `Place`, written by the expansion at the call site.
@@ -450,6 +461,56 @@ pub fn matchesNamedAsAt(
     val text = textOf(value);
     if (text.isError()) panic(errorText(text));
     val r = placeNamedAs(locationOf(at), name, subject, text.unwrapOr(""));
+    if (r.isError()) panic(errorText(r));
+    return;
+}
+
+// The path a `compiler.load("<path>")` call names: the text of its first string
+// literal, the whole call when it has none.
+fn loadedPath(written: string) -> string {
+    val parts = written.split("\"");
+    if (parts.length < 3) return written;
+    return parts.slice(1, 2).join("");
+}
+
+// One refusal as a block of the body: `refused <message>`, `at <file>:<line>:<column>`
+// and `label <text>` only when the diagnostic has one.
+fn refusalBlock(d: Diagnostic) -> string {
+    val head = [
+        "refused ",
+        d.message,
+        "\nat ",
+        d.file,
+        ":",
+        d.line.toString(),
+        ":",
+        d.column.toString(),
+    ].join("");
+    val label = d.label;
+    if (label == null) return head;
+    return [head, "\nlabel ", label].join("");
+}
+
+// The body of the `refused` snapshot: the blocks in order, one blank line between.
+fn refusalBody(ds: Diagnostic[]) -> string {
+    return ds.map({ d -> refusalBlock(d) }).join("\n\n");
+}
+
+// Record/compare the refusals `compiler.load` answered, subject `refused`; a
+// file that compiled fails the test, naming it (`written` is the load call as
+// the test wrote it).
+pub fn matchesRefusedAt(
+    loaded: Result<void, Diagnostic[]>,
+    written: string,
+    at: Place,
+) -> void {
+    val refusals = case loaded {
+        Ok(v) -> [];
+        Error(ds) -> ds;
+    };
+    if (refusals.length == 0)
+        panic(["snapshots: ", loadedPath(written), " compiled - matchesRefused expects a refused file"].join(""));
+    val r = placeAs(locationOf(at), "refused", refusalBody(refusals));
     if (r.isError()) panic(errorText(r));
     return;
 }

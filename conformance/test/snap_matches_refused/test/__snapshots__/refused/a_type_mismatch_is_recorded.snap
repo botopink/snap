@@ -1,0 +1,6 @@
+botopink-snap 1
+test: refused: a type mismatch is recorded
+subject: refused
+
+refused type mismatch: expected i32, got string
+at cases/type_mismatch/main.bp:4:18

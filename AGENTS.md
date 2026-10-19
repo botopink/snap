@@ -31,10 +31,10 @@ snap/
 ├── botopink.json     "name": "snap", "targets": ["erlang", "beam", "commonJS"], "files": ["snap.bp"] (what a consumer loads), std only
 ├── src/
 │   ├── snap.bp       the whole engine, module `snap` — `path`, `pathNamed`, `suiteOf`, `slugOf` (pure), the four
-│   │                 expanded functions `matches`, `matchesAs`, `matchesNamed`, `matchesNamedAs` over their run-time
+│   │                 expanded functions `matches`, `matchesAs`, `matchesNamed`, `matchesNamedAs`, `matchesRefused` over their run-time
 │   │                 `matches*At(…, at: Place)`, the location-taking `assert*` kept until their consumers move, and its eighteen inline tests
 │   └── __snapshots__/snapshots/   the `.snap` files the path-rule and naming tests record
-├── conformance/      `docs.md` (the reference), `modules/decisions-taken/` (front 166's), `test/snapshot_named_by_running_test/` (772)
+├── conformance/      `docs.md` (the reference), `modules/decisions-taken/` (front 166's), `test/snapshot_named_by_running_test/` (772), `test/snap_matches_refused/` (784)
 └── scripts/git-hooks/   the shared pre-commit gate
 ```
 
@@ -70,7 +70,10 @@ location only places the file.
 - A name with no suite (`""`, or no `": "`) and an empty `name` of `matchesNamed*` are refused.
 - Entry points: `matches(value)` (subject `text`), `matchesAs(subject, value)`,
   `matchesNamed(name, value)`, `matchesNamedAs(name, subject, value)`, each over its `…At` run-time
-  function; `assertText(loc, actual)`, `assertAs`, `assertNamed`, `assertNamedAs` over a caller-written
+  function; `matchesRefused(comptime compiler.load("cases/<case>/main.bp"))` (decision 784) records the
+  `Diagnostic`s a loaded file is refused with — blocks `refused <message>` / `at <file>:<line>:<column>` /
+  `label <text>` when there is one, a blank line between, subject `refused` — through the same engine, and
+  fails the test when the file compiles, over `matchesRefusedAt(loaded, written, at)`; `assertText(loc, actual)`, `assertAs`, `assertNamed`, `assertNamedAs` over a caller-written
   `SourceLocation` stay until the `<lib>-test` helpers (rakun-bpp's and the others) call `matchesAs`. The engine proper is private: `placeAs(loc, subject, actual)` and
   `placeNamedAs(loc, name, subject, actual)`, `-> Result<void, string>`, over a `SourceLocation`.
 
