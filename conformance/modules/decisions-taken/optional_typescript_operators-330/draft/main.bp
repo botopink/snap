@@ -1,7 +1,7 @@
 //// Decision 330 — `?T` is read with TypeScript's operators and has no methods; `result` goes; a type declared in a type is its associated type.
 
-import {io.terminal, io.env, io.os, io.fs, compiler.SourceLocation} from "std";
-import {path, suiteOf} from "snap";
+import {io.terminal, io.env, io.os, io.fs} from "std";
+import {snap, suiteOf} from "snap";
 
 // The suite of a test name, `null` when the name has none.
 fn suiteOrNull(testName: string) -> ?string {
@@ -20,12 +20,10 @@ pub fn main() -> void {
     val none = suiteOrNull("no suite here");
     terminal.print(none ?? "(no suite)", " ", none?.length() ?? 0, "\n");
 
-    val loc = SourceLocation(
-        file: "src/emilia.bp",
-        line: 1,
-        column: 1,
-        fnName: "css: modifiers ---- hover",
-    );
-    val recorded = fs.readText(path(loc));
+    val recorded = fs.readText("src/__snapshots__/css/missing.snap");
     terminal.print(recorded.isError(), " ", recorded.unwrapOr("(no snapshot)"), "\n");
+}
+
+test "optional: a name with no suite" {
+    snap.matches(suiteOrNull("no suite here") ?? "(no suite)");
 }

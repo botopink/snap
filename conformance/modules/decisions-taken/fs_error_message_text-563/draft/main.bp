@@ -1,7 +1,7 @@
 //// Decision 563 — An `FsError` carries its own text: std's `io/fs` gives it `message()`
 
-import {io.terminal, io.fs, compiler.SourceLocation} from "std";
-import {path} from "snap";
+import {io.terminal, io.fs} from "std";
+import {snap} from "snap";
 
 // A recorded snapshot's text; an `io.fs` failure carried into the engine's
 // `string` error by the error's own text.
@@ -12,18 +12,15 @@ fn readRecorded(file: string) -> Result<string, string> {
     return text;
 }
 
-fn show(file: string) -> void {
-    val text = try readRecorded(file) catch { e -> e };
-    terminal.print(text, "\n");
+fn textOf(file: string) -> string {
+    return try readRecorded(file) catch { e -> e };
 }
 
 pub fn main() -> void {
-    val loc = SourceLocation(
-        file: "src/missing/t.bp",
-        line: 1,
-        column: 1,
-        fnName: "css: hover",
-    );
-    show(path(loc));
-    show(".");
+    terminal.print(textOf("src/missing/__snapshots__/css/hover.snap"), "\n");
+    terminal.print(textOf("."), "\n");
+}
+
+test "fs: a snapshot that is not there" {
+    snap.matches(textOf("src/missing/__snapshots__/css/hover.snap"));
 }
