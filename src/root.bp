@@ -382,7 +382,7 @@ test "snapshots: path ---- suite and slug from a test name" {
         column: 1,
         fnName: "css: modifiers ---- hover on md breakpoint",
     );
-    try assertText(comptime compiler.src, path(loc));
+    try assertText(comptime compiler.src(), path(loc));
 }
 
 test "snapshots: path ---- named second snapshot" {
@@ -392,11 +392,11 @@ test "snapshots: path ---- named second snapshot" {
         column: 1,
         fnName: "route: two tables",
     );
-    try assertText(comptime compiler.src, pathNamed(loc, "After Merge"));
+    try assertText(comptime compiler.src(), pathNamed(loc, "After Merge"));
 }
 
 test "snapshots: slug ---- punctuation collapses to one underscore" {
-    try assertText(comptime compiler.src, slugOf("Modifiers ---- Hover, on (md) breakpoint!"));
+    try assertText(comptime compiler.src(), slugOf("Modifiers ---- Hover, on (md) breakpoint!"));
 }
 
 test "snapshots: path ---- a name without a suite is refused" {
@@ -407,7 +407,7 @@ test "snapshots: path ---- a name without a suite is refused" {
         fnName: "no suite here",
     );
     val r = assertAs(loc, "text", "x");
-    try assertText(comptime compiler.src, errorText(r));
+    try assertText(comptime compiler.src(), errorText(r));
 }
 
 test "snapshots: path ---- the pure half" {

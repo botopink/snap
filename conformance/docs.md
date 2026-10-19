@@ -138,7 +138,7 @@ file relative to the package root as diagnostics print it, `src/main.bp`, never 
 (decision 720).
 
 Departure: `root.bp` still declares only the four entry points taking a hand-written `SourceLocation`, and
-its tests write `comptime compiler.src` without the parentheses; the `snap` namespace for
+its tests write `comptime compiler.src()` without the parentheses; the `snap` namespace for
 `import {snap} from "snap";` and `matches` come with front 160's step and 144 B-156, so the decision cells
 that use `snap.matches` are drafts.
 
