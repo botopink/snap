@@ -138,14 +138,15 @@ argument as a `syntax` parameter, so the call is expanded where it is written an
 test's file and line with `compiler.source(value)` (decision 719). `compiler.source(value).file` is the
 file relative to the package root as diagnostics print it, `src/main.bp`, never the module path
 (decision 756). The argument is not executed at the call but spliced into the code the call answers
-(decision 720): the body builds that code as a tree with `compiler.ast`, `Syntax(value)` standing for the
-expression as written (decisions 625, 638).
+(decision 720): the body writes that code with std's `code` template, `${value}` a `syntax` hole spliced as the
+expression was written and the place's file, line and column spliced as literals (decisions 625 (4), 637, 638).
 
 The location only places the snapshot, beside its file. The snapshot's name is the running test's: the
 test runner sets it where the run-time `matchesAt` reads it, `BOTOPINK_TEST_NAME` while a test's body runs
 (decision 772), so a snapshot keeps its name when a line above it moves. The engine's own tests
 `snapshots: name ---- the running test names the first snapshot` and `… the second snapshot` record one
-snapshot each, their names in the headers.
+snapshot each, their names in the headers. The cell [snapshot_named_by_running_test](test/snapshot_named_by_running_test/test/snapshot_named_by_running_test.bp)
+proves it from a consumer's side: two tests, one `snap.matches` each, each `.snap` named by its own test.
 
 A location can still be written as an explicit argument, `comptime compiler.src()`: `src` is a function
 of `Compiler`, `fn src(self: Self) -> SourceLocation`, always written with its parentheses, and the

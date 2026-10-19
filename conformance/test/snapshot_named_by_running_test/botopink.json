@@ -1,0 +1,8 @@
+{
+  "name": "snapshot_named_by_running_test",
+  "version": "0.0.1",
+  "targets": ["erlang", "beam", "commonJS"],
+  "dependencies": {
+    "snap": { "path": "../../.." }
+  }
+}

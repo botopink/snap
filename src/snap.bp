@@ -42,7 +42,7 @@
 //// Node's global in the emitted file, and `io/random` is not imported at all.
 //// Consumers write `import {snap} from "snap";` and `snap.matches(render(page));`.
 
-import {failure.panic, io.fs, io.os, io.env, io.process as host, path.join as joinPath, path.dirname as parentOf, compiler, compiler.Source, compiler.Node, compiler.Call, compiler.Name, compiler.Lit, compiler.Syntax} from "std";
+import {failure.panic, io.fs, io.os, io.env, io.process as host, path.join as joinPath, path.dirname as parentOf, compiler, code} from "std";
 
 // ── the path rule (pure) ─────────────────────────────────────────────────────
 
@@ -371,31 +371,27 @@ fn locationOf(at: Place) -> SourceLocation {
 
 // ── the public functions (decision 719) ──────────────────────────────────────
 // Each is expanded at its call: the test writes `snap.matches(render(page));`
-// and the expansion answers the run-time call with the expression as written
-// (`Syntax(value)`) and the call's `Source`. The tree's names are this
+// and the expansion answers, with `code @`…`` (625 (4), 637), the run-time
+// call over the expression as written (a `syntax` hole, 638) and the call's
+// place, read by `compiler.source(value)` (756). The code's names are this
 // module's (decision 638), so the caller imports nothing but `snap`.
-
-// The call's `Source` as code: `placeAt("<file>", <line>, <col>)`.
-fn sourceNode(at: Source) -> Node {
-    return Call(callee: Name("placeAt"), args: [Lit(at.file), Lit(at.line), Lit(at.col)]);
-}
 
 // Record/compare `value` as the test's one snapshot (subject `text`).
 pub fn matches(syntax value: unknown) -> anyvalue {
     val at = compiler.source(value);
-    return compiler.ast(Call(callee: Name("matchesAt"), args: [Syntax(value), sourceNode(at)]));
+    return code @`matchesAt(${value}, placeAt(${at.file}, ${at.line}, ${at.col}))`;
 }
 
 // The same, with the helper's subject (`css`, `html`, `route`, …) in the header.
 pub fn matchesAs(comptime subject: string, syntax value: unknown) -> anyvalue {
     val at = compiler.source(value);
-    return compiler.ast(Call(callee: Name("matchesAsAt"), args: [Lit(subject), Syntax(value), sourceNode(at)]));
+    return code @`matchesAsAt(${subject}, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}))`;
 }
 
 // A named second snapshot in the same test, subject `text`.
 pub fn matchesNamed(comptime name: string, syntax value: unknown) -> anyvalue {
     val at = compiler.source(value);
-    return compiler.ast(Call(callee: Name("matchesNamedAt"), args: [Lit(name), Syntax(value), sourceNode(at)]));
+    return code @`matchesNamedAt(${name}, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}))`;
 }
 
 // A named snapshot with a subject.
@@ -405,7 +401,7 @@ pub fn matchesNamedAs(
     syntax value: unknown,
 ) -> anyvalue {
     val at = compiler.source(value);
-    return compiler.ast(Call(callee: Name("matchesNamedAsAt"), args: [Lit(name), Lit(subject), Syntax(value), sourceNode(at)]));
+    return code @`matchesNamedAsAt(${name}, ${subject}, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}))`;
 }
 
 // ── the run-time calls the expansions answer ─────────────────────────────────

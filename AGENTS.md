@@ -11,7 +11,7 @@ The snapshot engine every `<lib>-test` writes through (decisions 72, 390, 391): 
 four `.snap` files.
 
 A library of its own (decision 326's rule; 115: five consumers). It imports std only and declares
-no host cell: std provides the general primitives it is written over (`compiler.source`, `compiler.ast`, `SourceLocation`,
+no host cell: std provides the general primitives it is written over (`compiler.source`, the `code` template, `SourceLocation`,
 `io/fs` with `mkdirRecursive`, `path`, `io/env`, `io/os`, and the `String` methods
 `normalizeNewlines`, `trimTrailingNewlines` and `firstDifferingLine` of decision 391 (2)). Pure
 `.bp`: no `#[@External]` cell, no `declare fn`, no sidecar. It runs where `io/fs` does — commonJS,
@@ -28,12 +28,13 @@ engine and no re-export.
 ```text
 snap/
 ├── AGENTS.md
-├── botopink.json     "name": "snap", "target": "erlang", "targets": ["erlang", "commonJS"], std only
+├── botopink.json     "name": "snap", "targets": ["erlang", "beam", "commonJS"], "files": ["snap.bp"] (what a consumer loads), std only
 ├── src/
 │   ├── snap.bp       the whole engine, module `snap` — `path`, `pathNamed`, `suiteOf`, `slugOf` (pure), the four
 │   │                 expanded functions `matches`, `matchesAs`, `matchesNamed`, `matchesNamedAs` over their run-time
 │   │                 `matches*At(…, at: Place)`, the location-taking `assert*` kept until their consumers move, and its eighteen inline tests
-│   └── __snapshots__/snapshots/   the four `.snap` the path-rule tests record (moved from std, byte for byte)
+│   └── __snapshots__/snapshots/   the `.snap` files the path-rule and naming tests record
+├── conformance/      `docs.md` (the reference), `modules/decisions-taken/` (front 166's), `test/snapshot_named_by_running_test/` (772)
 └── scripts/git-hooks/   the shared pre-commit gate
 ```
 
@@ -51,8 +52,8 @@ test "release: text ---- the vm.args file" {
 }
 ```
 
-Each is `pub fn matches…(…, syntax value: unknown) -> anyvalue { val at = compiler.source(value); return compiler.ast(Call(callee: Name("matches…At"), args: [… , Syntax(value), placeAt(at)])); }`
-over a run-time `matches…At(…, value: unknown, at: Place) -> void` — the tree, never `compiler.build` over text
+Each is `pub fn matches…(…, syntax value: unknown) -> anyvalue { val at = compiler.source(value); return code @`matches…At(…, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}))`; }`
+over a run-time `matches…At(…, value: unknown, at: Place) -> void` — code written with holes, never `compiler.build` over text
 (decision 625); `Place(file, line, col)` is snap's own record, since `compiler.Source` cannot be built at run
 time on erlang or commonJS yet (B-147). The snapshot's **name** is the running test's, read from
 `BOTOPINK_TEST_NAME`, which `botopink test`'s runner sets while each test body runs (decision 772); the

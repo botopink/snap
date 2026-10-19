@@ -1,0 +1,14 @@
+//// Decision 772 — the test runner sets the running test's name where the
+//// run-time `snap.matchesAt` reads it; the caller's location (719, 756) only
+//// places the snapshot inside the file. Two tests, one `matches` each:
+//// each snapshot is named by its own test, the name in its `.snap` header.
+
+import {matches} from "snap";
+
+test "names: the first test names its snapshot" {
+    matches("first");
+}
+
+test "names: the second test names its snapshot" {
+    matches("second");
+}

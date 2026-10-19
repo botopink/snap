@@ -5,5 +5,8 @@
   "description": "The snapshot engine every <lib>-test writes through: the path rule, the botopink-snap 1 format and the <path>.new flow — std only, no host cell",
   "src": "src/",
   "target": "erlang",
-  "targets": ["erlang", "beam", "commonJS"]
+  "targets": ["erlang", "beam", "commonJS"],
+  "files": [
+    "snap.bp"
+  ]
 }
