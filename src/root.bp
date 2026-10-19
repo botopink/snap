@@ -12,7 +12,7 @@
 ////      Nothing accepts a snapshot but a person renaming the `.new` file:
 ////      there is no update flag, no environment variable, no manifest key
 ////      (decision 67), and no code path here ever writes `<path>` itself.
-////   3. A `<lib>-test` exposes `assert<Subject>(loc, …) -> @Result<void, string>`
+////   3. A `<lib>-test` exposes `assert<Subject>(loc, …) -> Result<void, string>`
 ////      helpers that turn a domain value into text and call
 ////      `assertAs(loc, "<subject>", text)` with the CALLER's `@src()` — a
 ////      `@src()` taken inside the helper would name the helper.
