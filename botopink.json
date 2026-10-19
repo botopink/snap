@@ -4,10 +4,6 @@
   "otp": "28",
   "description": "The snapshot engine every <lib>-test writes through: the path rule, the botopink-snap 1 format and the <path>.new flow — std only, no host cell",
   "src": "src/",
-  "entry": "root.bp",
   "target": "erlang",
-  "targets": ["erlang", "beam", "commonJS"],
-  "files": [
-    "root.bp"
-  ]
+  "targets": ["erlang", "beam", "commonJS"]
 }

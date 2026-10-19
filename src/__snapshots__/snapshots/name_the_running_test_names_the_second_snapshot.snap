@@ -1,0 +1,5 @@
+botopink-snap 1
+test: snapshots: name ---- the running test names the second snapshot
+subject: text
+
+second

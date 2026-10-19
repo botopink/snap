@@ -12,10 +12,10 @@
 ////      Nothing accepts a snapshot but a person renaming the `.new` file:
 ////      there is no update flag, no environment variable, no manifest key
 ////      (decision 67), and no code path here ever writes `<path>` itself.
-////   3. A `<lib>-test` exposes `assert<Subject>(loc, …) -> Result<void, string>`
-////      helpers that turn a domain value into text and call
-////      `assertAs(loc, "<subject>", text)` with the CALLER's `@src()` — a
-////      `@src()` taken inside the helper would name the helper.
+////   3. A `<lib>-test` exposes `assert<Subject>(syntax value: unknown) -> anyvalue`
+////      helpers (decision 719) that turn a domain value into text and answer
+////      `matchesAsAt("<subject>", text, at)` with the CALLER's `Place`,
+////      read by `compiler.source(value)` where the helper is called.
 ////
 //// The `.snap` file (decision 72):
 ////
@@ -30,7 +30,7 @@
 //// compiler's `utils/snap.zig` applies — and nothing else.
 ////
 //// `path`, `pathNamed`, `suiteOf` and `slugOf` are pure botopink. The four
-//// `assert*` entry points read and write through `io/fs` and `path`, imported
+//// `matches*At` entry points read and write through `io/fs` and `path`, imported
 //// below — the library declares no host cell. So it runs where `io/fs` runs —
 //// commonJS, erlang and beam — and is no loss on wasm (`io/fs` has no wasm
 //// binding): `botopink test` runs on commonJS and erlang only. `path(loc)` is
@@ -40,14 +40,14 @@
 ////
 //// `io/process` is bound as `host`, because a module-level `process` shadows
 //// Node's global in the emitted file, and `io/random` is not imported at all.
-//// Consumers write `import {assertAs} from "snap";`.
+//// Consumers write `import {snap} from "snap";` and `snap.matches(render(page));`.
 
-import {io.fs, io.os, io.env, io.process as host, path.join as joinPath, path.dirname as parentOf, compiler} from "std";
+import {failure.panic, io.fs, io.os, io.env, io.process as host, path.join as joinPath, path.dirname as parentOf, compiler, compiler.Source, compiler.Node, compiler.Call, compiler.Name, compiler.Lit, compiler.Syntax} from "std";
 
 // ── the path rule (pure) ─────────────────────────────────────────────────────
 
 // The suite of a test name: the text before the first `": "`, `""` when the
-// name has none (`assert*` then refuse — decision 67, no `misc/` default).
+// name has none (`matches*` then refuse — decision 67, no `misc/` default).
 pub fn suiteOf(testName: string) -> string {
     val i = testName.indexOf(": ");
     if (i < 0) return "";
@@ -220,7 +220,7 @@ fn errorOf(r: Result<i32, string>) -> string {
 // The `Error` payload of an engine result, `""` for `Ok` — what a test reads
 // to check a refusal (`asserts.errorText`'s twin, private: a std module does
 // not import another).
-fn errorText(r: Result<void, string>) -> string {
+fn errorText<T>(r: Result<T, string>) -> string {
     val text = case r {
         Ok(v) -> "";
         Error(e) -> e;
@@ -311,30 +311,19 @@ fn check(
 // Refuse a `loc` whose test name carries no suite (decision 67: no default).
 fn requireSuite(loc: SourceLocation) -> Result<void, string> {
     if (loc.fnName == "")
-        throw "snapshots: test name needs a suite - a @src() taken outside a test has no test name; take it inside test \"<suite>: <description>\" { ... }";
+        throw "snapshots: test name needs a suite - a call made outside a running test has no test name; make it inside test \"<suite>: <description>\" { ... }";
     if (suiteOf(loc.fnName) == "")
         throw "snapshots: test name needs a suite - write \"<suite>: <description>\"";
     return;
 }
 
-// ── the four entry points ────────────────────────────────────────────────────
+// ── the engine's placing core ────────────────────────────────────────────────
+// `loc` names the test (`loc.fnName`) and the file beside which the snapshot
+// lives; the public functions below build it from the `Source` the call
+// expansion wrote.
 
-// Record/compare `actual` as the test's one snapshot, subject `text`.
-// `snapshots.md` names this `assert`; `assert` is a reserved keyword statement
-// (the reason the module beside this one is `asserts`), so the entry point is
-// `assertText` — the `assert<Subject>` spelling of the contract's own
-// convention, for the subject the header records.
-pub fn assertText(
-    loc: SourceLocation,
-    actual: string,
-) -> Result<void, string> {
-    try assertAs(loc, "text", actual);
-    return;
-}
-
-// What a `<lib>-test` helper calls: the same, with the helper's subject
-// (`css`, `html`, `route`, …) in the header.
-pub fn assertAs(
+// Record/compare `actual` as the test's one snapshot, with `subject` in the header.
+fn placeAs(
     loc: SourceLocation,
     subject: string,
     actual: string,
@@ -344,18 +333,8 @@ pub fn assertAs(
     return;
 }
 
-// A named second snapshot in the same test, subject `text`.
-pub fn assertNamed(
-    loc: SourceLocation,
-    name: string,
-    actual: string,
-) -> Result<void, string> {
-    try assertNamedAs(loc, name, "text", actual);
-    return;
-}
-
 // A named snapshot with a subject. `name` empty is refused.
-pub fn assertNamedAs(
+fn placeNamedAs(
     loc: SourceLocation,
     name: string,
     subject: string,
@@ -363,8 +342,159 @@ pub fn assertNamedAs(
 ) -> Result<void, string> {
     try requireSuite(loc);
     if (slugOf(name) == "")
-        throw "snapshots: a named snapshot needs a name - pass a non-empty name to assertNamed/assertNamedAs";
+        throw "snapshots: a named snapshot needs a name - pass a non-empty name to matchesNamed/matchesNamedAs";
     try check(loc, pathNamed(loc, name), subject, actual);
+    return;
+}
+
+// The environment variable through which the test harness names the running
+// test (decision 772): `botopink test`'s runner sets it before each test body
+// and clears it after, so the name is a run-time value of the harness.
+val testNameEnv = "BOTOPINK_TEST_NAME";
+
+// The name of the test running now, `""` outside a test run.
+fn runningTest() -> string {
+    return env.read(testNameEnv) ?? "";
+}
+
+// A call's place, as the expansion writes it: the file relative to the
+// package root (decision 756), the line and the column. It stands for std's
+// `compiler.Source` at run time, which no target can build yet (`__Source`
+// is undefined on erlang and commonJS, machine 2's B-147).
+pub type Place(file: string, line: i32, col: i32)
+
+// The `SourceLocation` of a call: the file the expansion wrote (decision 756)
+// places the snapshot, the running test's name (decision 772) names it.
+fn locationOf(at: Place) -> SourceLocation {
+    return SourceLocation(file: at.file, line: at.line, column: at.col, fnName: runningTest());
+}
+
+// ── the public functions (decision 719) ──────────────────────────────────────
+// Each is expanded at its call: the test writes `snap.matches(render(page));`
+// and the expansion answers the run-time call with the expression as written
+// (`Syntax(value)`) and the call's `Source`. The tree's names are this
+// module's (decision 638), so the caller imports nothing but `snap`.
+
+// The call's `Source` as code: `placeAt("<file>", <line>, <col>)`.
+fn sourceNode(at: Source) -> Node {
+    return Call(callee: Name("placeAt"), args: [Lit(at.file), Lit(at.line), Lit(at.col)]);
+}
+
+// Record/compare `value` as the test's one snapshot (subject `text`).
+pub fn matches(syntax value: unknown) -> anyvalue {
+    val at = compiler.source(value);
+    return compiler.ast(Call(callee: Name("matchesAt"), args: [Syntax(value), sourceNode(at)]));
+}
+
+// The same, with the helper's subject (`css`, `html`, `route`, …) in the header.
+pub fn matchesAs(comptime subject: string, syntax value: unknown) -> anyvalue {
+    val at = compiler.source(value);
+    return compiler.ast(Call(callee: Name("matchesAsAt"), args: [Lit(subject), Syntax(value), sourceNode(at)]));
+}
+
+// A named second snapshot in the same test, subject `text`.
+pub fn matchesNamed(comptime name: string, syntax value: unknown) -> anyvalue {
+    val at = compiler.source(value);
+    return compiler.ast(Call(callee: Name("matchesNamedAt"), args: [Lit(name), Syntax(value), sourceNode(at)]));
+}
+
+// A named snapshot with a subject.
+pub fn matchesNamedAs(
+    comptime name: string,
+    comptime subject: string,
+    syntax value: unknown,
+) -> anyvalue {
+    val at = compiler.source(value);
+    return compiler.ast(Call(callee: Name("matchesNamedAsAt"), args: [Lit(name), Lit(subject), Syntax(value), sourceNode(at)]));
+}
+
+// ── the run-time calls the expansions answer ─────────────────────────────────
+
+// A `Place`, written by the expansion at the call site.
+pub fn placeAt(file: string, line: i32, col: i32) -> Place {
+    return Place(file: file, line: line, col: col);
+}
+
+// The text a snapshot records: the value the test passed, a string.
+fn textOf(value: unknown) -> Result<string, string> {
+    if (value is string) return value;
+    throw "snapshots: a snapshot records a string - pass the text, not another value";
+}
+
+pub fn matchesAt(value: unknown, at: Place) -> void {
+    val text = textOf(value);
+    if (text.isError()) panic(errorText(text));
+    val r = placeAs(locationOf(at), "text", text.unwrapOr(""));
+    if (r.isError()) panic(errorText(r));
+    return;
+}
+
+pub fn matchesAsAt(subject: string, value: unknown, at: Place) -> void {
+    val text = textOf(value);
+    if (text.isError()) panic(errorText(text));
+    val r = placeAs(locationOf(at), subject, text.unwrapOr(""));
+    if (r.isError()) panic(errorText(r));
+    return;
+}
+
+pub fn matchesNamedAt(name: string, value: unknown, at: Place) -> void {
+    val text = textOf(value);
+    if (text.isError()) panic(errorText(text));
+    val r = placeNamedAs(locationOf(at), name, "text", text.unwrapOr(""));
+    if (r.isError()) panic(errorText(r));
+    return;
+}
+
+pub fn matchesNamedAsAt(
+    name: string,
+    subject: string,
+    value: unknown,
+    at: Place,
+) -> void {
+    val text = textOf(value);
+    if (text.isError()) panic(errorText(text));
+    val r = placeNamedAs(locationOf(at), name, subject, text.unwrapOr(""));
+    if (r.isError()) panic(errorText(r));
+    return;
+}
+
+// ── the location-taking entry points, kept until their consumers move ────────
+// `assertText`, `assertAs`, `assertNamed` and `assertNamedAs` take the
+// caller's `SourceLocation` (`comptime compiler.src()`, decision 718 (b)) and
+// answer `Result<void, string>`; each delegates to the engine above. The
+// `<lib>-test` helpers still call them; they go once those helpers are
+// written over `matchesAs` (front 160).
+
+pub fn assertText(loc: SourceLocation, actual: string) -> Result<void, string> {
+    try placeAs(loc, "text", actual);
+    return;
+}
+
+pub fn assertAs(
+    loc: SourceLocation,
+    subject: string,
+    actual: string,
+) -> Result<void, string> {
+    try placeAs(loc, subject, actual);
+    return;
+}
+
+pub fn assertNamed(
+    loc: SourceLocation,
+    name: string,
+    actual: string,
+) -> Result<void, string> {
+    try placeNamedAs(loc, name, "text", actual);
+    return;
+}
+
+pub fn assertNamedAs(
+    loc: SourceLocation,
+    name: string,
+    subject: string,
+    actual: string,
+) -> Result<void, string> {
+    try placeNamedAs(loc, name, subject, actual);
     return;
 }
 
@@ -382,7 +512,7 @@ test "snapshots: path ---- suite and slug from a test name" {
         column: 1,
         fnName: "css: modifiers ---- hover on md breakpoint",
     );
-    try assertText(comptime compiler.src(), path(loc));
+    matches(path(loc));
 }
 
 test "snapshots: path ---- named second snapshot" {
@@ -392,11 +522,11 @@ test "snapshots: path ---- named second snapshot" {
         column: 1,
         fnName: "route: two tables",
     );
-    try assertText(comptime compiler.src(), pathNamed(loc, "After Merge"));
+    matches(pathNamed(loc, "After Merge"));
 }
 
 test "snapshots: slug ---- punctuation collapses to one underscore" {
-    try assertText(comptime compiler.src(), slugOf("Modifiers ---- Hover, on (md) breakpoint!"));
+    matches(slugOf("Modifiers ---- Hover, on (md) breakpoint!"));
 }
 
 test "snapshots: path ---- a name without a suite is refused" {
@@ -406,8 +536,16 @@ test "snapshots: path ---- a name without a suite is refused" {
         column: 1,
         fnName: "no suite here",
     );
-    val r = assertAs(loc, "text", "x");
-    try assertText(comptime compiler.src(), errorText(r));
+    val r = placeAs(loc, "text", "x");
+    matches(errorText(r));
+}
+
+test "snapshots: name ---- the running test names the first snapshot" {
+    matches("first");
+}
+
+test "snapshots: name ---- the running test names the second snapshot" {
+    matches("second");
 }
 
 test "snapshots: path ---- the pure half" {
@@ -434,7 +572,7 @@ test "snapshots: engine ---- missing writes a .new and answers Error" {
         column: 1,
         fnName: "e: missing",
     );
-    val r = assertAs(loc, "text", "hello");
+    val r = placeAs(loc, "text", "hello");
     assert r.isError();
     assert fs.exists([path(loc), ".new"].join(""));
     assert fs.exists(path(loc)) == false;
@@ -456,7 +594,7 @@ test "snapshots: engine ---- mismatch writes a .new and answers Error" {
     );
     val w = writeFile(path(loc), render("e: mismatch", "text", "old"));
     assert w.isOk();
-    val r = assertAs(loc, "text", "new");
+    val r = placeAs(loc, "text", "new");
     assert r.isError();
     assert errorText(r).startsWith("snapshots: mismatch ");
     assert errorText(r).contains("(first difference at body line 1)");
@@ -477,7 +615,7 @@ test "snapshots: engine ---- the differing line is counted from the body" {
     );
     val w = writeFile(path(loc), render("e: line", "text", "a\nb\nc"));
     assert w.isOk();
-    val r = assertAs(loc, "text", "a\nb\nd");
+    val r = placeAs(loc, "text", "a\nb\nd");
     assert errorText(r).contains("(first difference at body line 3)");
     val cleaned = fs.removeTree(dir);
     assert cleaned.isOk();
@@ -495,7 +633,7 @@ test "snapshots: engine ---- match answers Ok and removes a stale .new" {
     assert w.isOk();
     val stale = writeFile([path(loc), ".new"].join(""), "stale");
     assert stale.isOk();
-    try assertAs(loc, "text", "same");
+    try placeAs(loc, "text", "same");
     assert fs.exists([path(loc), ".new"].join("")) == false;
     val cleaned = fs.removeTree(dir);
     assert cleaned.isOk();
@@ -511,7 +649,7 @@ test "snapshots: engine ---- header must match too" {
     );
     val w = writeFile(path(loc), render("e: header", "css", "body"));
     assert w.isOk();
-    val r = assertAs(loc, "text", "body");
+    val r = placeAs(loc, "text", "body");
     assert r.isError();
     assert errorText(r).contains("(header differs)");
     val cleaned = fs.removeTree(dir);
@@ -531,7 +669,7 @@ test "snapshots: engine ---- CRLF in the recorded file still matches" {
         "botopink-snap 1\r\ntest: e: crlf\r\nsubject: text\r\n\r\nline one\r\nline two\r\n",
     );
     assert w.isOk();
-    try assertAs(loc, "text", "line one\nline two");
+    try placeAs(loc, "text", "line one\nline two");
     val cleaned = fs.removeTree(dir);
     assert cleaned.isOk();
 }
@@ -546,7 +684,7 @@ test "snapshots: engine ---- trailing newlines of the body do not matter" {
     );
     val w = writeFile(path(loc), render("e: trailing", "text", "body\n\n"));
     assert w.isOk();
-    try assertAs(loc, "text", "body");
+    try placeAs(loc, "text", "body");
     val cleaned = fs.removeTree(dir);
     assert cleaned.isOk();
 }
@@ -561,7 +699,7 @@ test "snapshots: engine ---- not a snapshot file" {
     );
     val w = writeFile(path(loc), "hello\nworld\n\n\n");
     assert w.isOk();
-    val r = assertAs(loc, "text", "x");
+    val r = placeAs(loc, "text", "x");
     assert r.isError();
     assert errorText(r).startsWith("snapshots: not a snapshot file");
     assert fs.exists([path(loc), ".new"].join("")) == false;
@@ -577,7 +715,7 @@ test "snapshots: engine ---- the header keeps the full test name" {
         column: 1,
         fnName: "css: modifiers ---- hover on md breakpoint",
     );
-    val first = assertAs(
+    val first = placeAs(
         loc,
         "css",
         "@media(min-width:768px){:hover{background:red}}",
@@ -606,11 +744,11 @@ test "snapshots: engine ---- a named snapshot lives beside the unnamed one" {
         render("e: named", "text", "second"),
     );
     assert w.isOk();
-    try assertNamed(loc, "After Merge", "second");
+    try placeNamedAs(loc, "After Merge", "text", "second");
     assert pathNamed(loc, "After Merge").endsWith(
         "/__snapshots__/e/named.after_merge.snap",
     );
-    val empty = assertNamedAs(loc, "", "text", "x");
+    val empty = placeNamedAs(loc, "", "text", "x");
     assert empty.isError();
     assert errorText(empty).startsWith(
         "snapshots: a named snapshot needs a name",
@@ -621,7 +759,7 @@ test "snapshots: engine ---- a named snapshot lives beside the unnamed one" {
 
 test "snapshots: engine ---- a module-level location is refused" {
     val loc = SourceLocation(file: "src/a.bp", line: 1, column: 1, fnName: "");
-    val r = assertText(loc, "x");
+    val r = placeAs(loc, "text", "x");
     assert r.isError();
     assert errorText(r).startsWith("snapshots: test name needs a suite");
 }

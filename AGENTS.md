@@ -11,7 +11,7 @@ The snapshot engine every `<lib>-test` writes through (decisions 72, 390, 391): 
 four `.snap` files.
 
 A library of its own (decision 326's rule; 115: five consumers). It imports std only and declares
-no host cell: std provides the general primitives it is written over (`@src()` / `SourceLocation`,
+no host cell: std provides the general primitives it is written over (`compiler.source`, `compiler.ast`, `SourceLocation`,
 `io/fs` with `mkdirRecursive`, `path`, `io/env`, `io/os`, and the `String` methods
 `normalizeNewlines`, `trimTrailingNewlines` and `firstDifferingLine` of decision 391 (2)). Pure
 `.bp`: no `#[@External]` cell, no `declare fn`, no sidecar. It runs where `io/fs` does — commonJS,
@@ -30,24 +30,33 @@ snap/
 ├── AGENTS.md
 ├── botopink.json     "name": "snap", "target": "erlang", "targets": ["erlang", "commonJS"], std only
 ├── src/
-│   ├── root.bp       the whole engine — `path`, `pathNamed`, `suiteOf`, `slugOf` (pure), the four entry
-│   │                 points `assertText`, `assertAs`, `assertNamed`, `assertNamedAs`, and its sixteen inline tests
+│   ├── snap.bp       the whole engine, module `snap` — `path`, `pathNamed`, `suiteOf`, `slugOf` (pure), the four
+│   │                 expanded functions `matches`, `matchesAs`, `matchesNamed`, `matchesNamedAs` over their run-time
+│   │                 `matches*At(…, at: Place)`, the location-taking `assert*` kept until their consumers move, and its eighteen inline tests
 │   └── __snapshots__/snapshots/   the four `.snap` the path-rule tests record (moved from std, byte for byte)
 └── scripts/git-hooks/   the shared pre-commit gate
 ```
 
 ## The engine
 
-Consumers write `import {assertAs} from "snap";` and call it with the CALLER's `@src()` — a
-`@src()` taken inside a helper would name the helper:
+Consumers write `import {snap} from "snap";` and call a function that is **expanded at its call**
+(decision 719): the test writes nothing but the expression, and the expansion writes the call's
+`Source` (file, line, column) into the run-time call it answers:
 
 ```bp
-import {assertAs} from "snap";
+import {snap} from "snap";
 
 test "release: text ---- the vm.args file" {
-    try assertAs(@src(), "vm.args", releaseText(app));   // __snapshots__/release/text_the_vm_args_file.snap
+    snap.matchesAs("vm.args", releaseText(app));   // __snapshots__/release/text_the_vm_args_file.snap
 }
 ```
+
+Each is `pub fn matches…(…, syntax value: unknown) -> anyvalue { val at = compiler.source(value); return compiler.ast(Call(callee: Name("matches…At"), args: [… , Syntax(value), placeAt(at)])); }`
+over a run-time `matches…At(…, value: unknown, at: Place) -> void` — the tree, never `compiler.build` over text
+(decision 625); `Place(file, line, col)` is snap's own record, since `compiler.Source` cannot be built at run
+time on erlang or commonJS yet (B-147). The snapshot's **name** is the running test's, read from
+`BOTOPINK_TEST_NAME`, which `botopink test`'s runner sets while each test body runs (decision 772); the
+location only places the file.
 
 - `path(loc)` = `<dir of loc.file>/__snapshots__/<suite>/<slug>.snap`; `suite` is the text before the
   first `": "` of `loc.fnName`, `slug` the slugified rest (the compiler's own rule, byte for byte:
@@ -57,10 +66,12 @@ test "release: text ---- the vm.args file" {
   lines compare exactly; bodies compare after `\r\n` -> `\n` and with trailing newlines trimmed.
 - A missing file or a mismatch writes `<path>.new` (its parents made with `fs.mkdirRecursive`) and
   answers `Error`; a match removes a stale `.new`. Nothing here writes `<path>` itself.
-- A name with no suite (`""`, or no `": "`) and an empty `name` of `assertNamed*` are refused.
-- Entry points: `assertText(loc, actual)` (subject `text`), `assertAs(loc, subject, actual)`,
-  `assertNamed(loc, name, actual)`, `assertNamedAs(loc, name, subject, actual)` — every one
-  `-> @Result<void, string>`.
+- A name with no suite (`""`, or no `": "`) and an empty `name` of `matchesNamed*` are refused.
+- Entry points: `matches(value)` (subject `text`), `matchesAs(subject, value)`,
+  `matchesNamed(name, value)`, `matchesNamedAs(name, subject, value)`, each over its `…At` run-time
+  function; `assertText(loc, actual)`, `assertAs`, `assertNamed`, `assertNamedAs` over a caller-written
+  `SourceLocation` stay until the `<lib>-test` helpers (rakun-bpp's and the others) call `matchesAs`. The engine proper is private: `placeAs(loc, subject, actual)` and
+  `placeNamedAs(loc, name, subject, actual)`, `-> Result<void, string>`, over a `SourceLocation`.
 
 The inline tests make a scratch directory `bpsnap-<pid>-<n>` under `BOTOPINK_TEST_TMPDIR` (the host
 tmpdir outside a run) and remove it again with `fs.removeTree`.

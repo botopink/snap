@@ -13,11 +13,11 @@ step (decision 465). A table, a grammar or a file layout is not a program and is
 
 | Section | What |
 |---|---|
-| *The library* | what `snap` holds, the one module `root.bp`, its dependencies |
+| *The library* | what `snap` holds, the one module `snap`, its dependencies |
 | *The path rule* | `suiteOf`, `slugOf`, `path`, `pathNamed` |
 | *The snapshot file* | the `botopink-snap 1` format and how a body is compared |
-| *The entry points* | `assertText`, `assertAs`, `assertNamed`, `assertNamedAs`, and how they fail |
-| *Where the test's location comes from* | the `SourceLocation` argument, `snap.matches` |
+| *The entry points* | `matches`, `matchesAs`, `matchesNamed`, `matchesNamedAs`, the location-taking `assert*`, and how they fail |
+| *Where the test's location and name come from* | `snap.matches` expanded at its call, the running test's name |
 | *Decisions* | `modules/decisions-taken/`: the ledger's index |
 
 ## The library
@@ -26,9 +26,9 @@ step (decision 465). A table, a grammar or a file layout is not a program and is
 general primitives it is written over: `compiler.src()` and `SourceLocation`, `io/fs`, `path`, `io/env`
 and `io/os`, `mkdirRecursive`, and the text methods `normalizeNewlines`, `trimTrailingNewlines` and
 `firstDifferingLine`. A primitive the engine lacks is std surface first, never a host cell in `snap`
-(decision 391 (2)). The library has one module, `root.bp`, and declares no host cell, so it runs where
+(decision 391 (2)). The library has one module, `src/snap.bp` (module `snap`, decision 592), and declares no host cell, so it runs where
 `io/fs` runs: commonJS and erlang, its manifest's two targets. It is no loss on wasm, where `io/fs` has no
-binding. A consumer declares `"snap"` in its `"dependencies"` and writes `import {assertAs} from "snap";`
+binding. A consumer declares `"snap"` in its `"dependencies"` and writes `import {snap} from "snap";`
 (decision 407). The module's `import` of std binds `io.process` as `host`, because a module-level
 `process` would shadow Node's global in the emitted file; `io/random` is not imported at all.
 
@@ -87,20 +87,29 @@ short to hold a header, is not a snapshot file.
 
 ## The entry points
 
-Four `pub` functions, each answering `Result<void, string>`; the `Error` text is the message a failing
-test prints.
+Four functions are expanded at their call (decision 719) and answer the run-time call that checks the
+snapshot; a failure panics with the message below, so it is the test's failure:
 
-- `assertText(loc, actual)` records or compares `actual` as the test's one snapshot with subject `text`.
-  `assert` is a reserved keyword statement, which is why it is not the name.
-- `assertAs(loc, subject, actual)` is what a `<lib>-test` helper `assert<Subject>` calls: the same, with
-  the helper's subject in the header. The helper takes the **caller's** location; a location taken
-  inside the helper would name the helper.
-- `assertNamed(loc, name, actual)` is a named second snapshot of the same test, subject `text`.
-- `assertNamedAs(loc, name, subject, actual)` is a named snapshot with a subject. A name that slugs to
+- `snap.matches(value)` records or compares `value`, a `string`, as the test's one snapshot with subject
+  `text`.
+- `snap.matchesAs(subject, value)` is what a `<lib>-test` helper `assert<Subject>` answers: the same, with
+  the helper's subject in the header.
+- `snap.matchesNamed(name, value)` is a named second snapshot of the same test, subject `text`.
+- `snap.matchesNamedAs(name, subject, value)` is a named snapshot with a subject. A name that slugs to
   `""` is refused.
 
+Each is `pub fn …(…, syntax value: unknown) -> anyvalue` over a run-time `matches…At(…, value: unknown,
+at: Place) -> void`; `Place(file, line, col)` is snap's own record for the call's `compiler.Source`, which
+no target builds at run time yet.
+
+The four location-taking functions stay until the `<lib>-test` helpers move to `matchesAs`, each answering
+`Result<void, string>` over a `SourceLocation` the caller writes (`comptime compiler.src()`, decision 718):
+`assertText(loc, actual)`, `assertAs(loc, subject, actual)`, `assertNamed(loc, name, actual)` and
+`assertNamedAs(loc, name, subject, actual)`. A helper takes the **caller's** location; a location taken
+inside the helper would name the helper.
+
 A test name without a suite is refused before any path is computed (decision 67: no `misc/` default):
-a location taken outside a test has no name, and one whose name has no `": "` has no suite.
+a call made outside a running test has no name, and one whose name has no `": "` has no suite.
 
 An entry point fails in these ways, each the text beginning with `snapshots:`:
 
@@ -110,7 +119,7 @@ snapshots: mismatch <path> - candidate written to <path>.new (header differs)
 snapshots: mismatch <path> - candidate written to <path>.new (first difference at body line <n>)
 snapshots: not a snapshot file: <path>
 snapshots: test name needs a suite - write "<suite>: <description>"
-snapshots: a named snapshot needs a name - pass a non-empty name to assertNamed/assertNamedAs
+snapshots: a named snapshot needs a name - pass a non-empty name to matchesNamed/matchesNamedAs
 snapshots: cannot write <path>.new: <fs error>
 ```
 
@@ -122,25 +131,27 @@ an earlier red run left. A host failure while writing is the test's failure, nev
 its own over the variants. The example is
 [fs_error_message_text-563](modules/decisions-taken/fs_error_message_text-563/draft/main.bp).
 
-## Where the test's location comes from
-
-The entry points take a `SourceLocation`. A test can write it as an explicit argument,
-`comptime compiler.src()`: `src` is a function of `Compiler`, `fn src(self: Self) -> SourceLocation`,
-always written with its parentheses, and the explicit argument is an ordinary parameter a call without it
-fails the arity check on (decision 718). A default `at: SourceLocation = comptime compiler.src()` on a
-parameter would name snap's own module and gets no exception (decisions 718, 719).
+## Where the test's location and name come from
 
 The form consumers write is `snap.matches(render(page))`, with no location argument: `matches` takes its
 argument as a `syntax` parameter, so the call is expanded where it is written and its build body reads the
 test's file and line with `compiler.source(value)` (decision 719). `compiler.source(value).file` is the
 file relative to the package root as diagnostics print it, `src/main.bp`, never the module path
 (decision 756). The argument is not executed at the call but spliced into the code the call answers
-(decision 720).
+(decision 720): the body builds that code as a tree with `compiler.ast`, `Syntax(value)` standing for the
+expression as written (decisions 625, 638).
 
-Departure: `root.bp` still declares only the four entry points taking a hand-written `SourceLocation`, and
-its tests write `comptime compiler.src()` without the parentheses; the `snap` namespace for
-`import {snap} from "snap";` and `matches` come with front 160's step and 144 B-156, so the decision cells
-that use `snap.matches` are drafts.
+The location only places the snapshot, beside its file. The snapshot's name is the running test's: the
+test runner sets it where the run-time `matchesAt` reads it, `BOTOPINK_TEST_NAME` while a test's body runs
+(decision 772), so a snapshot keeps its name when a line above it moves. The engine's own tests
+`snapshots: name ---- the running test names the first snapshot` and `… the second snapshot` record one
+snapshot each, their names in the headers.
+
+A location can still be written as an explicit argument, `comptime compiler.src()`: `src` is a function
+of `Compiler`, `fn src(self: Self) -> SourceLocation`, always written with its parentheses, and the
+explicit argument is an ordinary parameter a call without it fails the arity check on (decision 718); the
+`assert*` functions take it so. A default `at: SourceLocation = comptime compiler.src()` on a parameter
+would name snap's own module and gets no exception (decisions 718, 719).
 
 ## Decisions
 
