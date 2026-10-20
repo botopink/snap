@@ -6,8 +6,7 @@
   repository and its CI check 7.
 - `test/<cell>/` — a package run by `botopink test` (snap by `"path": "../../.."`), for behaviour only a running test
   shows; its recorded `.snap` files under `test/__snapshots__/` are the expected answers. Today
-  `snapshot_named_by_running_test` (decision 772) and `snap_matches_refused` (decision 784: its refused files sit in
-  `cases/`, outside `src/`, because every `src/` file is a module the run compiles).
+  `snapshot_named_by_running_test` (decision 772).
 - `modules/botopink.json` — the workspace manifest (`"workspaces": ["*"]`, snap's targets, `snap` by `"path": "../.."`) that
   `decision-cells.py compile` reads for the drafts' dependencies.
 - `docs.md` — the library's reference, in botopink-lang's `conformance/docs.md` pattern (no fenced `botopink`; a table, a
