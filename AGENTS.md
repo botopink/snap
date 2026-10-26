@@ -28,7 +28,7 @@ engine and no re-export.
 ```text
 snap/
 ├── AGENTS.md
-├── botopink.json     "name": "snap", "targets": ["erlang", "beam", "commonJS"], "files": ["snap.bp"] (what a consumer loads), std only
+├── botopink.json     "name": "snap", "targets": ["erlang", "beam", "commonJS"] (no wasm: std `io.fs.mkdirRecursive` has no `.Wasm(…)` binding, decision 993 (4)), "files": ["snap.bp"] (what a consumer loads), std only
 ├── src/
 │   ├── snap.bp       the whole engine, module `snap` — `path`, `pathNamed`, `suiteOf`, `slugOf` (pure), the four
 │   │                 expanded functions `matches`, `matchesAs`, `matchesNamed`, `matchesNamedAs` over their run-time
