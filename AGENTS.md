@@ -34,6 +34,10 @@ snap/
 │   │                 expanded functions `matches`, `matchesAs`, `matchesNamed`, `matchesNamedAs` over their run-time
 │   │                 `matches*At(…, at: Place)`, the location-taking `assert*` kept until their consumers move, and its eighteen inline tests
 │   └── __snapshots__/snapshots/   the `.snap` files the path-rule and naming tests record
+├── test/
+│   ├── running_name_test.bp   decision 1003 (5): a snapshot named by the running test; the same recorded file answers
+│   │                          `botopink test` (`root` `""`) and a program's ``Module.`test`()`` (`root` the load directory)
+│   └── __snapshots__/running/  its `.snap`
 ├── conformance/      `docs.md` (the reference), `modules/decisions-taken/` (front 166's), `test/snapshot_named_by_running_test/` (772), `test/snap_matches_refused/` (784)
 └── scripts/git-hooks/   the shared pre-commit gate
 ```

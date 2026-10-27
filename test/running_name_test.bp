@@ -1,0 +1,10 @@
+//// Decision 1003 (5) — a snapshot named by the running test: `matches` reads the running test's
+//// name (`BOTOPINK_TEST_NAME`, decision 772) for the file and the `test:` header, and places the
+//// file under this file's directory — under the package's `root` when a program loads `snap` and
+//// runs its tests in process (``Module.`test`()``), so the same recorded file answers both runs.
+
+import {snap.matches};
+
+test "running: names its own snapshot" {
+    matches("the running test names this snapshot");
+}
