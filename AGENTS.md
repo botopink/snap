@@ -5,7 +5,7 @@
 > Repository: `botopink/snap` (`git@github.com:botopink/snap.git`) · in the meta checkout: `repository/snap/`
 
 The snapshot engine every `<lib>-test` writes through (decisions 72, 390, 391): the path rule
-(`<dir of loc.file>/__snapshots__/<suite>/<slug>.snap`), the `botopink-snap 1` format and the
+(`<root>/<dir of loc.file>/__snapshots__/<suite>/<slug>.snap`, `<root>/` only for a loaded package, decision 1003), the `botopink-snap 1` format and the
 `<path>.new` flow — a person renaming `.new` accepts a snapshot; there is no update flag (decision
 67). Moved here from std's `testing/snapshots.bp` by `specs/1.0.12-beta/20-snap` step 0, with std's
 four `.snap` files.
@@ -59,7 +59,7 @@ time on erlang or commonJS yet (B-147). The snapshot's **name** is the running t
 `BOTOPINK_TEST_NAME`, which `botopink test`'s runner sets while each test body runs (decision 772); the
 location only places the file.
 
-- `path(loc)` = `<dir of loc.file>/__snapshots__/<suite>/<slug>.snap`; `suite` is the text before the
+- `path(loc)` = `<root>/<dir of loc.file>/__snapshots__/<suite>/<slug>.snap` — `loc.root` (decision 1003) joined first when it is not `""`, the directory `compiler.load` loaded the package from; `suite` is the text before the
   first `": "` of `loc.fnName`, `slug` the slugified rest (the compiler's own rule, byte for byte:
   lowercase, a maximal run of `[A-Za-z0-9]` kept, anything else one `_`, none leading or trailing).
   `pathNamed(loc, name)` is `…/<slug>.<slugOf(name)>.snap`.

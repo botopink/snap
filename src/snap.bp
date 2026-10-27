@@ -2,7 +2,9 @@
 //// 73, 67; moved from std's `testing/snapshots.bp` by decision 391).
 ////
 //// Three rules:
-////   1. `path(loc)` = `<dir of loc.file>/__snapshots__/<suite>/<slug>.snap`,
+////   1. `path(loc)` = `<root>/<dir of loc.file>/__snapshots__/<suite>/<slug>.snap`,
+////      `<root>/` only when `loc.root` is not `""` (a package `compiler.load`
+////      loaded, decision 1003),
 ////      where `suite` is the text before the first `": "` of the test name
 ////      and `slug` is the slugified rest — the slugifier is byte-for-byte the
 ////      compiler's own (`codegen/tests/helpers.zig` `slugify`): lowercase,
@@ -34,9 +36,9 @@
 //// below — the library declares no host cell. So it runs where `io/fs` runs —
 //// commonJS, erlang and beam — and is no loss on wasm (`io/fs` has no wasm
 //// binding): `botopink test` runs on commonJS and erlang only. `path(loc)` is
-//// package-relative because `loc.file` is; the engine opens it relative to
-//// the process's working directory, and `botopink test` runs from the
-//// package root.
+//// package-relative because `loc.file` is, under `loc.root` when the package
+//// was loaded (decision 1003); the engine opens it relative to the process's
+//// working directory, and `botopink test` runs from the package root.
 ////
 //// `io/process` is bound as `host`, because a module-level `process` shadows
 //// Node's global in the emitted file, and `io/random` is not imported at all.
@@ -99,9 +101,10 @@ fn dirOf(file: string) -> string {
     return parts.slice(0, n - 1).join("/");
 }
 
-// `<dir of loc.file>/__snapshots__/<suite>/` — the directory rule 1 fixes.
+// `<root>/<dir of loc.file>/__snapshots__/<suite>/` — the directory rule 1
+// fixes; `loc.root` (decision 1003) only for a loaded package.
 fn snapshotDir(loc: SourceLocation) -> string {
-    val dir = dirOf(loc.file);
+    val dir = if (loc.root == "") dirOf(loc.file) else joinPath([loc.root, dirOf(loc.file)]);
     val root = if (dir == "")
         "__snapshots__"
     else
@@ -358,15 +361,17 @@ fn runningTest() -> string {
 }
 
 // A call's place, as the expansion writes it: the file relative to the
-// package root (decision 756), the line and the column. It stands for std's
-// `compiler.Source` at run time, which no target can build yet (`__Source`
-// is undefined on erlang and commonJS, machine 2's B-147).
-pub type Place(file: string, line: i32, col: i32)
+// package root (decision 756), the line and the column, and the directory a
+// loaded package was loaded from (decision 1003, `""` for the top-level
+// package). It stands for std's `compiler.Source` at run time, which no
+// target can build yet (`__Source` is undefined on erlang and commonJS,
+// machine 2's B-147).
+pub type Place(file: string, line: i32, col: i32, root: string = "")
 
 // The `SourceLocation` of a call: the file the expansion wrote (decision 756)
 // places the snapshot, the running test's name (decision 772) names it.
 fn locationOf(at: Place) -> SourceLocation {
-    return SourceLocation(file: at.file, line: at.line, column: at.col, fnName: runningTest());
+    return SourceLocation(file: at.file, line: at.line, column: at.col, fnName: runningTest(), root: at.root);
 }
 
 // ── the public functions (decision 719) ──────────────────────────────────────
@@ -379,19 +384,19 @@ fn locationOf(at: Place) -> SourceLocation {
 // Record/compare `value` as the test's one snapshot (subject `text`).
 pub fn matches(syntax value: unknown) -> anyvalue {
     val at = compiler.source(value);
-    return code @`matchesAt(${value}, placeAt(${at.file}, ${at.line}, ${at.col}))`;
+    return code @`matchesAt(${value}, placeAt(${at.file}, ${at.line}, ${at.col}, ${at.root}))`;
 }
 
 // The same, with the helper's subject (`css`, `html`, `route`, …) in the header.
 pub fn matchesAs(comptime subject: string, syntax value: unknown) -> anyvalue {
     val at = compiler.source(value);
-    return code @`matchesAsAt(${subject}, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}))`;
+    return code @`matchesAsAt(${subject}, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}, ${at.root}))`;
 }
 
 // A named second snapshot in the same test, subject `text`.
 pub fn matchesNamed(comptime name: string, syntax value: unknown) -> anyvalue {
     val at = compiler.source(value);
-    return code @`matchesNamedAt(${name}, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}))`;
+    return code @`matchesNamedAt(${name}, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}, ${at.root}))`;
 }
 
 // A named snapshot with a subject.
@@ -401,14 +406,14 @@ pub fn matchesNamedAs(
     syntax value: unknown,
 ) -> anyvalue {
     val at = compiler.source(value);
-    return code @`matchesNamedAsAt(${name}, ${subject}, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}))`;
+    return code @`matchesNamedAsAt(${name}, ${subject}, ${value}, placeAt(${at.file}, ${at.line}, ${at.col}, ${at.root}))`;
 }
 
 // ── the run-time calls the expansions answer ─────────────────────────────────
 
 // A `Place`, written by the expansion at the call site.
-pub fn placeAt(file: string, line: i32, col: i32) -> Place {
-    return Place(file: file, line: line, col: col);
+pub fn placeAt(file: string, line: i32, col: i32, root: string = "") -> Place {
+    return Place(file: file, line: line, col: col, root: root);
 }
 
 // The text a snapshot records: the value the test passed, a string.
@@ -558,6 +563,19 @@ test "snapshots: path ---- the pure half" {
         fnName: "t: bare file",
     );
     assert path(bare) == "__snapshots__/t/bare_file.snap";
+}
+
+test "snapshots: path ---- a loaded package's root comes first" {
+    val loaded = SourceLocation(
+        file: "src/page.bp",
+        line: 1,
+        column: 1,
+        fnName: "page: renders",
+        root: "packages/site",
+    );
+    assert path(loaded) == "packages/site/src/__snapshots__/page/renders.snap";
+    val bare = SourceLocation(file: "main.bp", line: 1, column: 1, fnName: "t: bare", root: "lib");
+    assert path(bare) == "lib/__snapshots__/t/bare.snap";
 }
 
 test "snapshots: engine ---- missing writes a .new and answers Error" {
